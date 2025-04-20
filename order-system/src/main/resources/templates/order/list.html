@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>订单列表</title>
+    <link rel="stylesheet" th:href="@{/css/apple-style.css}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>订单系统</h1>
+            <nav>
+                <ul>
+                    <li><a th:href="@{/orders}" class="active">所有订单</a></li>
+                    <li><a th:href="@{/orders/create}">创建订单</a></li>
+                </ul>
+            </nav>
+        </header>
+        
+        <main>
+            <section class="content-section">
+                <div class="section-header">
+                    <h2>订单列表</h2>
+                    <a th:href="@{/orders/create}" class="btn primary">新建订单</a>
+                </div>
+                
+                <div class="order-list">
+                    <div th:if="${orders.empty}" class="empty-state">
+                        <p>暂无订单数据</p>
+                    </div>
+                    
+                    <div th:unless="${orders.empty}" class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>订单ID</th>
+                                    <th>商品</th>
+                                    <th>总金额</th>
+                                    <th>状态</th>
+                                    <th>创建时间</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="order : ${orders}">
+                                    <td th:text="${order.id}"></td>
+                                    <td>
+                                        <ul class="product-list">
+                                            <li th:each="item : ${order.items}">
+                                                <span th:text="${item.productName}"></span>
+                                                <span th:text="${item.quantity} + ' x ￥' + ${item.price}"></span>
+                                            </li>
+                                        </ul>
+                                    </td>
+                                    <td>
+                                        <span th:text="'￥' + ${#aggregates.sum(order.items.![price * quantity])}"></span>
+                                    </td>
+                                    <td>
+                                        <span th:class="${order.status.name() == 'PENDING' ? 'badge warning' : 'badge success'}" 
+                                              th:text="${order.status.displayName}"></span>
+                                    </td>
+                                    <td th:text="${#temporals.format(order.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+        
+        <footer>
+            <p>&copy; 2025 订单物流系统</p>
+        </footer>
+    </div>
+</body>
+</html>

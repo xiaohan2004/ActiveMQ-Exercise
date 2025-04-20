@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创建订单</title>
+    <link rel="stylesheet" th:href="@{/css/apple-style.css}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>订单系统</h1>
+            <nav>
+                <ul>
+                    <li><a th:href="@{/orders}">所有订单</a></li>
+                    <li><a th:href="@{/orders/create}" class="active">创建订单</a></li>
+                </ul>
+            </nav>
+        </header>
+        
+        <main>
+            <section class="content-section">
+                <div class="section-header">
+                    <h2>创建新订单</h2>
+                </div>
+                
+                <div class="order-form">
+                    <div class="card">
+                        <h3>订单商品</h3>
+                        <div id="order-items">
+                            <div class="order-item">
+                                <div class="form-group">
+                                    <label for="productName">商品名称</label>
+                                    <input type="text" id="productName" class="form-control" placeholder="输入商品名称">
+                                </div>
+                                <div class="form-group">
+                                    <label for="price">价格</label>
+                                    <input type="number" id="price" class="form-control" step="0.01" min="0" placeholder="输入价格">
+                                </div>
+                                <div class="form-group">
+                                    <label for="quantity">数量</label>
+                                    <input type="number" id="quantity" class="form-control" min="1" value="1">
+                                </div>
+                                <button type="button" id="add-item" class="btn primary">添加商品</button>
+                            </div>
+                        </div>
+                        
+                        <div class="cart-items">
+                            <h4>已添加商品</h4>
+                            <div id="cart-items-list" class="empty-state">
+                                <p>暂无添加商品</p>
+                            </div>
+                            <table id="cart-table" style="display: none;">
+                                <thead>
+                                    <tr>
+                                        <th>商品名称</th>
+                                        <th>单价</th>
+                                        <th>数量</th>
+                                        <th>小计</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cart-body">
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td colspan="3" class="text-right"><strong>总计:</strong></td>
+                                        <td id="total-amount">￥0.00</td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                        
+                        <div class="actions">
+                            <button type="button" id="submit-order" class="btn primary" disabled>提交订单</button>
+                            <a th:href="@{/orders}" class="btn secondary">取消</a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+        
+        <footer>
+            <p>&copy; 2025 订单物流系统</p>
+        </footer>
+    </div>
+    
+    <script th:inline="javascript">
+        document.addEventListener('DOMContentLoaded', function() {
+            const cartItems = [];
+            const addItemBtn = document.getElementById('add-item');
+            const submitOrderBtn = document.getElementById('submit-order');
+            const cartItemsList = document.getElementById('cart-items-list');
+            const cartTable = document.getElementById('cart-table');
+            const cartBody = document.getElementById('cart-body');
+            const totalAmount = document.getElementById('total-amount');
+            
+            addItemBtn.addEventListener('click', function() {
+                const productName = document.getElementById('productName').value.trim();
+                const price = parseFloat(document.getElementById('price').value);
+                const quantity = parseInt(document.getElementById('quantity').value);
+                
+                if (!productName || isNaN(price) || isNaN(quantity) || price <= 0 || quantity <= 0) {
+                    alert('请填写有效的商品信息');
+                    return;
+                }
+                
+                const item = {
+                    productName,
+                    price,
+                    quantity
+                };
+                
+                cartItems.push(item);
+                updateCartDisplay();
+                
+                // 清空输入
+                document.getElementById('productName').value = '';
+                document.getElementById('price').value = '';
+                document.getElementById('quantity').value = '1';
+            });
+            
+            function updateCartDisplay() {
+                if (cartItems.length === 0) {
+                    cartTable.style.display = 'none';
+                    cartItemsList.style.display = 'block';
+                    submitOrderBtn.disabled = true;
+                    return;
+                }
+                
+                cartTable.style.display = 'table';
+                cartItemsList.style.display = 'none';
+                submitOrderBtn.disabled = false;
+                
+                cartBody.innerHTML = '';
+                let total = 0;
+                
+                cartItems.forEach((item, index) => {
+                    const row = document.createElement('tr');
+                    const subtotal = item.price * item.quantity;
+                    total += subtotal;
+                    
+                    row.innerHTML = `
+                        <td>${item.productName}</td>
+                        <td>￥${item.price.toFixed(2)}</td>
+                        <td>${item.quantity}</td>
+                        <td>￥${subtotal.toFixed(2)}</td>
+                        <td><button type="button" class="btn danger" data-index="${index}">删除</button></td>
+                    `;
+                    
+                    cartBody.appendChild(row);
+                });
+                
+                totalAmount.textContent = `￥${total.toFixed(2)}`;
+                
+                // 为删除按钮添加事件
+                document.querySelectorAll('#cart-body button').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const index = parseInt(this.getAttribute('data-index'));
+                        cartItems.splice(index, 1);
+                        updateCartDisplay();
+                    });
+                });
+            }
+            
+            submitOrderBtn.addEventListener('click', function() {
+                if (cartItems.length === 0) {
+                    alert('请至少添加一个商品');
+                    return;
+                }
+                
+                const orderDTO = {
+                    items: cartItems
+                };
+                
+                fetch('/orders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(orderDTO)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('提交订单失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    alert('订单创建成功！订单ID: ' + data.id);
+                    window.location.href = '/orders';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('提交订单失败: ' + error.message);
+                });
+            });
+        });
+    </script>
+</body>
+</html> 

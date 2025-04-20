@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物流订单列表</title>
+    <link rel="stylesheet" th:href="@{/css/apple-style.css}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>物流系统</h1>
+            <nav>
+                <ul>
+                    <li><a th:href="@{/logistics}" class="active">待发货订单</a></li>
+                    <li><a th:href="@{/logistics/shipped}">已发货订单</a></li>
+                </ul>
+            </nav>
+        </header>
+        
+        <main>
+            <section class="content-section">
+                <div class="section-header">
+                    <h2>待发货订单列表</h2>
+                </div>
+                
+                <div class="order-list">
+                    <div th:if="${orders.empty}" class="empty-state">
+                        <p>暂无待发货订单</p>
+                    </div>
+                    
+                    <div th:unless="${orders.empty}" class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>订单ID</th>
+                                    <th>商品</th>
+                                    <th>总金额</th>
+                                    <th>状态</th>
+                                    <th>创建时间</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="order : ${orders}">
+                                    <td th:text="${order.id}"></td>
+                                    <td>
+                                        <ul class="product-list">
+                                            <li th:each="item : ${order.items}">
+                                                <span th:text="${item.productName}"></span>
+                                                <span th:text="${item.quantity} + ' x ￥' + ${item.price}"></span>
+                                            </li>
+                                        </ul>
+                                    </td>
+                                    <td>
+                                        <span th:text="'￥' + ${order.totalAmount}"></span>
+                                    </td>
+                                    <td>
+                                        <span class="badge warning" th:text="${order.status.displayName}"></span>
+                                    </td>
+                                    <td th:text="${#temporals.format(order.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
+                                    <td>
+                                        <button th:attr="data-id=${order.id}" class="btn primary ship-btn">发货</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+        
+        <footer>
+            <p>&copy; 2025 订单物流系统</p>
+        </footer>
+    </div>
+    
+    <script th:inline="javascript">
+        document.addEventListener('DOMContentLoaded', function() {
+            const shipButtons = document.querySelectorAll('.ship-btn');
+            
+            shipButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const orderId = this.getAttribute('data-id');
+                    if (confirm('确认要发货订单 #' + orderId + ' 吗？')) {
+                        shipOrder(orderId, this);
+                    }
+                });
+            });
+            
+            function shipOrder(orderId, buttonElement) {
+                fetch('/logistics/' + orderId + '/ship', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('发货失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // 显示成功消息并提供查看已发货订单的选项
+                    if (confirm('订单 #' + orderId + ' 已成功发货！\n是否查看已发货订单列表？')) {
+                        window.location.href = '/logistics/shipped';
+                        return;
+                    }
+                    
+                    // 移除该行或更新状态
+                    const row = buttonElement.closest('tr');
+                    row.parentNode.removeChild(row);
+                    
+                    // 如果没有更多订单，显示空状态
+                    const tbody = document.querySelector('tbody');
+                    if (tbody.children.length === 0) {
+                        const tableContainer = document.querySelector('.table-container');
+                        if (tableContainer) {
+                            tableContainer.style.display = 'none';
+                        }
+                        const emptyState = document.querySelector('.empty-state');
+                        if (emptyState) {
+                            emptyState.style.display = 'block';
+                        } else {
+                            // 如果.empty-state元素不存在，创建一个
+                            const newEmptyState = document.createElement('div');
+                            newEmptyState.className = 'empty-state';
+                            newEmptyState.innerHTML = '<p>暂无待发货订单</p>';
+                            document.querySelector('.order-list').appendChild(newEmptyState);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('发货失败: ' + error.message);
+                });
+            }
+        });
+    </script>
+</body>
+</html> 

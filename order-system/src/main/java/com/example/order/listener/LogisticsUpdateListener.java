@@ -5,12 +5,14 @@ import com.example.common.dto.LogisticsUpdateDTO;
 import com.example.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jms.annotation.JmsListener;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnProperty(name = "jms.implementation", havingValue = "spring", matchIfMissing = true)
 public class LogisticsUpdateListener {
     
     private final OrderService orderService;

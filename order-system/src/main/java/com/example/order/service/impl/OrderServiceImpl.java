@@ -8,6 +8,7 @@ import com.example.order.entity.OrderItem;
 import com.example.order.repository.OrderRepository;
 import com.example.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "jms.implementation", havingValue = "spring", matchIfMissing = true)
 public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;

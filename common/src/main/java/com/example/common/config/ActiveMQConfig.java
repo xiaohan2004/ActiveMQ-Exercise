@@ -42,7 +42,8 @@ public class ActiveMQConfig {
             "com.example.common.model",
             "java.util",
             "java.lang",
-            "java.math"
+            "java.math",
+            "java.time"
         ));
         
         // 或者也可以完全禁用信任包检查（不推荐用于生产环境）

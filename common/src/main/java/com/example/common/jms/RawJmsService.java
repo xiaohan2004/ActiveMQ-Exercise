@@ -17,6 +17,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
+// 添加JSON处理的导入
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
 /**
  * 使用底层JMS API进行消息收发的服务
  */
@@ -40,6 +44,9 @@ public class RawJmsService {
     private Map<String, MessageProducer> producers = new HashMap<>();
     private Map<String, MessageConsumer> consumers = new ConcurrentHashMap<>();
     private ExecutorService executorService;
+    
+    // 添加JSON转换器
+     private ObjectMapper objectMapper;
 
     @PostConstruct
     public void init() {
@@ -75,6 +82,10 @@ public class RawJmsService {
             
             // 创建线程池用于处理消息
             executorService = Executors.newFixedThreadPool(5);
+            
+            // 初始化JSON转换器
+             objectMapper = new ObjectMapper();
+             objectMapper.registerModule(new JavaTimeModule());
             
             log.info("RawJmsService 初始化完成，已连接到 {}", brokerUrl);
         } catch (JMSException e) {
@@ -268,5 +279,121 @@ public class RawJmsService {
         
         producers.put(queueName, producer);
         return producer;
+    }
+
+    /**
+     * 使用JSON格式发送对象消息到指定队列
+     * 
+     * @param queueName 队列名称
+     * @param message 消息对象
+     * @param clazz 消息对象的类
+     */
+    public <T> void sendJsonMessage(String queueName, T message, Class<T> clazz) {
+        try {
+            // 获取或创建生产者
+            MessageProducer producer = getOrCreateProducer(queueName);
+
+            // 将对象转换为JSON字符串
+            String jsonMessage = objectMapper.writeValueAsString(message);
+
+            // 创建文本消息
+            TextMessage textMessage = session.createTextMessage(jsonMessage);
+
+            // 添加类型信息作为属性
+            textMessage.setStringProperty("_type", clazz.getName());
+
+            // 发送消息
+            producer.send(textMessage);
+            log.info("已发送JSON消息到队列 {}: {}", queueName, jsonMessage);
+        } catch (Exception e) {
+            log.error("发送JSON消息到队列 {} 失败", queueName, e);
+            throw new RuntimeException("发送JSON消息失败", e);
+        }
+    }
+
+    /**
+     * 注册一个JSON消息监听器，使用异步方式处理消息
+     * 
+     * @param queueName 队列名称
+     * @param messageHandler 消息处理函数
+     * @param clazz 消息对象的类
+     */
+    public <T> void registerJsonListener(String queueName, Consumer<T> messageHandler, Class<T> clazz) {
+        try {
+            // 创建目标队列
+            Queue queue = session.createQueue(queueName);
+            
+            // 创建消费者
+            MessageConsumer consumer = session.createConsumer(queue);
+            consumers.put(queueName, consumer);
+            
+            // 设置消息监听器
+            consumer.setMessageListener(message -> {
+                executorService.submit(() -> {
+                    try {
+                        if (message instanceof TextMessage) {
+                            TextMessage textMessage = (TextMessage) message;
+                            String jsonContent = textMessage.getText();
+                            log.info("从队列 {} 接收到JSON消息: {}", queueName, jsonContent);
+                            
+                            // 将JSON字符串转换回对象
+                            T object = objectMapper.readValue(jsonContent, clazz);
+                            messageHandler.accept(object);
+                        } else {
+                            log.warn("从队列 {} 接收到不支持的消息类型: {}", queueName, message.getClass().getName());
+                        }
+                    } catch (Exception e) {
+                        log.error("处理来自队列 {} 的JSON消息时出错", queueName, e);
+                    }
+                });
+            });
+            
+            log.info("已为队列 {} 注册JSON消息监听器", queueName);
+        } catch (JMSException e) {
+            log.error("为队列 {} 注册JSON消息监听器失败", queueName, e);
+            throw new RuntimeException("注册JSON消息监听器失败", e);
+        }
+    }
+
+    /**
+     * 同步接收来自指定队列的单个JSON消息
+     * 
+     * @param queueName 队列名称
+     * @param timeout 超时时间（毫秒）
+     * @param clazz 消息对象的类
+     * @return 接收到的消息对象，如果超时则返回null
+     */
+    public <T> T receiveJsonMessage(String queueName, long timeout, Class<T> clazz) {
+        try {
+            // 创建目标队列
+            Queue queue = session.createQueue(queueName);
+            
+            // 创建临时消费者
+            MessageConsumer consumer = session.createConsumer(queue);
+            try {
+                // 等待接收消息，带超时时间
+                Message message = consumer.receive(timeout);
+                
+                if (message != null && message instanceof TextMessage) {
+                    TextMessage textMessage = (TextMessage) message;
+                    String jsonContent = textMessage.getText();
+                    log.info("从队列 {} 同步接收到JSON消息: {}", queueName, jsonContent);
+                    
+                    // 将JSON字符串转换回对象
+                    return objectMapper.readValue(jsonContent, clazz);
+                } else if (message != null) {
+                    log.warn("从队列 {} 接收到不支持的消息类型: {}", queueName, message.getClass().getName());
+                } else {
+                    log.info("从队列 {} 接收消息超时", queueName);
+                }
+                return null;
+            } finally {
+                // 手动关闭消费者
+                consumer.close();
+            }
+        } catch (Exception e) {
+            log.error("从队列 {} 接收JSON消息失败", queueName, e);
+            throw new RuntimeException("接收JSON消息失败", e);
+        }
     }
 } 
